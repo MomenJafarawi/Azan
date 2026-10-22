@@ -1,14 +1,16 @@
+> **English:** Azan is a prayer times and adhan app for macOS that lives in the menu bar. It calculates accurate prayer times offline (matching AlAdhan within one minute), pauses your music during the adhan, switches to a silent spoken alert when your microphone is in use (Zoom, Teams, calls), and includes an animated desktop widget, a Quran reading plan split across the five prayers, and morning and evening adhkar. No ads, no account, no tracking. Requires macOS 14+, Apple Silicon or Intel. Also available for [Windows](https://github.com/MominAlJafarawi/Azan-Windows).
+
 <div dir="rtl">
 
 # أذان 🌙 — مواقيت الصلاة للماك
 
 **برنامج مواقيت صلاة وأذان يعيش بهدوء في شريط القوائم، بتصميم "ليل فاخر" ويدجت متحرك على سطح المكتب، ويفهم يومك: يوقف الموسيقى وقت الأذان، ويعرف إذا كنت في اجتماع فينبّهك بصمت.**
 
-متوفر أيضاً **لويندوز** بنفس الميزات والشكل: [Azan-Windows](https://github.com/MomenJafarawi/Azan-Windows)
+متوفر أيضاً **لويندوز** بنفس الميزات والشكل: [Azan-Windows](https://github.com/MominAlJafarawi/Azan-Windows)
 
 ## ⬇️ التنزيل
 
-- **[Azan-1.2.1-mac.dmg](https://github.com/MomenJafarawi/Azan/releases/download/v1.2.1/Azan-1.2.1-mac.dmg)** (حوالي 9 ميجا)
+- **[Azan-1.2.1-mac.dmg](https://github.com/MominAlJafarawi/Azan/releases/download/v1.2.1/Azan-1.2.1-mac.dmg)** (حوالي 9 ميجا)
 - يعمل على **macOS 14 (Sonoma) أو أحدث**، على أجهزة **Apple Silicon وIntel**.
 - كل ما يحتاجه البرنامج موجود داخله، ولا يحتاج أي تنزيل إضافي. طريقة التثبيت مكتوبة بالعربي داخل الملف.
 
@@ -79,8 +81,12 @@
 - الخط: Amiri (رخصة SIL OFL).
 - بيانات صفحات السور: api.quran.com.
 
+## 📄 الرخصة
+
+الكود تحت رخصة [MIT](LICENSE). الأصوات والخطوط والنصوص المضمّنة تبقى تحت رخص مصادرها المذكورة أعلاه.
+
 ---
 
-تطوير: **مؤمن الجعفراوي**
+تطوير: **مؤمن الجعفراوي** · [Momin AlJafarawi](https://github.com/MominAlJafarawi)
 
 </div>

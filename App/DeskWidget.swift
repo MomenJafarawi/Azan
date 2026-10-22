@@ -22,11 +22,14 @@ struct LiveSky: NSViewRepresentable {
     /// limit the sun/moon to the top part (points); nil = whole height
     var orbBand: CGFloat? = nil
     var orbOpacity: Float = 1
+    /// horizontal place of the moon as a share of the width (nil = top-left corner)
+    var orbX: CGFloat? = nil
 
     func makeNSView(context: Context) -> LiveSkyView { LiveSkyView() }
     func updateNSView(_ v: LiveSkyView, context: Context) {
         v.lat = lat; v.lon = lon; v.orbBand = orbBand
         v.orbOpacity = orbOpacity
+        if v.orbX != orbX { v.orbX = orbX; v.rebuild() }
         v.setPaused(paused)
         v.refresh()
     }
@@ -36,6 +39,8 @@ final class LiveSkyView: NSView {
     var lat = 0.0, lon = 0.0
     var orbBand: CGFloat?
     var orbOpacity: Float = 1
+    var orbX: CGFloat?
+    func rebuild() { built = false; refresh() }
     private let sky = CAGradientLayer()
     private let warm = CAGradientLayer()
     private let starsLayer = CALayer()
@@ -95,7 +100,7 @@ final class LiveSkyView: NSView {
         // crescent moon (top-left), gently breathing glow
         let band = min(size.height, orbBand ?? size.height)
         let r: CGFloat = 13
-        let c = CGPoint(x: 34, y: max(30, band * 0.35))
+        let c = CGPoint(x: orbX.map { size.width * $0 } ?? 34, y: max(30, band * 0.35))
         let outer = CGPath(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2), transform: nil)
         let inner = CGPath(ellipseIn: CGRect(x: c.x - r + 6, y: c.y - r - 3, width: r * 2, height: r * 2), transform: nil)
         moon.path = outer
@@ -172,12 +177,37 @@ struct DeskWidgetView: View {
     var body: some View {
         let look = model.sky
         let size = model.settings.deskSize
-        ZStack {
+        let base = size.size
+        let s = CGFloat(state.liveScale ?? model.settings.deskScale)
+        ZStack(alignment: .bottomTrailing) {
             if let lat = model.settings.latitude, let lon = model.settings.longitude {
-                LiveSky(lat: lat, lon: lon, paused: !state.visible, orbBand: 60)
+                LiveSky(lat: lat, lon: lon, paused: !state.visible, orbBand: 60 * s, orbX: size == .small ? 0.12 : 0.56)
             } else {
                 SkyBackground(look: look)
             }
+            Veil(look: look)
+            inner(look, size)
+                .foregroundStyle(look.text)
+                .environment(\.layoutDirection, .rightToLeft)
+                .environment(\.locale, Fmt.locale(latin: model.latin))
+                .frame(width: base.width, height: base.height)
+                .scaleEffect(s, anchor: .topLeading)
+                .frame(width: base.width * s, height: base.height * s, alignment: .topLeading)
+            // resize handle: drag this corner to make the widget bigger or smaller
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(look.gold.opacity(0.55))
+                .padding(9)
+                .help("اسحب أي طرف لتكبير أو تصغير الويدجت")
+        }
+        .environment(\.layoutDirection, .leftToRight)
+        .frame(width: base.width * s, height: base.height * s)
+        .clipShape(RoundedRectangle(cornerRadius: 28 * s, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 28 * s, style: .continuous).strokeBorder(look.gold.opacity(0.55), lineWidth: 1))
+    }
+
+    @ViewBuilder private func inner(_ look: SkyLook, _ size: DeskSize) -> some View {
+        Group {
             if model.input == nil {
                 Text("افتح الإعدادات واختار مدينتك").font(AppFont.naskh(16)).padding()
             } else {
@@ -201,13 +231,6 @@ struct DeskWidgetView: View {
                 }
             }
         }
-        .foregroundStyle(look.text)
-        .frame(width: size.size.width, height: size.size.height)
-        .background(Veil(look: look))
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(look.gold.opacity(0.55), lineWidth: 1))
-        .environment(\.layoutDirection, .rightToLeft)
-        .environment(\.locale, Fmt.locale(latin: model.latin))
     }
 
     private func nextBlock(_ look: SkyLook) -> some View {
@@ -290,6 +313,8 @@ struct DeskWidgetView: View {
 
 final class DeskState: ObservableObject {
     @Published var visible = true
+    /// size while the corner is being dragged (saved to settings on release)
+    @Published var liveScale: Double? = nil
 }
 
 /// Borderless window that lives on the desktop; drag it anywhere, position is remembered.
@@ -304,7 +329,9 @@ final class DeskWidgetController: NSObject, NSWindowDelegate {
 
     func apply() {
         guard model.settings.deskOn else { panel?.orderOut(nil); panel = nil; return }
-        let sz = model.settings.deskSize.size
+        let base = model.settings.deskSize.size
+        let sc = CGFloat(model.settings.deskScale)
+        let sz = CGSize(width: base.width * sc, height: base.height * sc)
         let p = panel ?? makePanel()
         p.level = model.settings.deskOnTop ? .floating : NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
         var f = p.frame
@@ -326,6 +353,7 @@ final class DeskWidgetController: NSObject, NSWindowDelegate {
         p.delegate = self
         let host = DeskHostingView(rootView: DeskWidgetView(model: model, state: state))
         host.onClick = { [weak self] in self?.onClick?() }
+        host.onResize = { [weak self] factor, done, fromLeft in self?.resize(factor, done: done, fromLeft: fromLeft) }
         host.menu = makeMenu()
         p.contentView = host
         if let s = UserDefaults.standard.string(forKey: "deskOrigin") {
@@ -349,6 +377,13 @@ final class DeskWidgetController: NSObject, NSWindowDelegate {
             m.addItem(it)
         }
         m.addItem(.separator())
+        for (t, sel) in [("تكبير", #selector(bigger)), ("تصغير", #selector(smaller)), ("الحجم الأصلي", #selector(resetScale))] {
+            let it = NSMenuItem(title: t, action: sel, keyEquivalent: ""); it.target = self; m.addItem(it)
+        }
+        m.addItem(.separator())
+        let clock = NSMenuItem(title: "الساعة ٢٤", action: #selector(toggle24), keyEquivalent: ""); clock.target = self
+        m.addItem(clock)
+        m.addItem(.separator())
         let top = NSMenuItem(title: "فوق كل النوافذ", action: #selector(toggleTop), keyEquivalent: ""); top.target = self
         m.addItem(top)
         let st = NSMenuItem(title: "الإعدادات…", action: #selector(openSettings), keyEquivalent: ""); st.target = self
@@ -358,6 +393,33 @@ final class DeskWidgetController: NSObject, NSWindowDelegate {
         m.delegate = self
         return m
     }
+
+    private var resizeStart: (scale: Double, top: CGFloat, left: CGFloat, right: CGFloat)?
+    /// edge drag: factor = new width / width when the drag started; the top edge stays put,
+    /// and the opposite side edge stays put
+    func resize(_ factor: CGFloat, done: Bool, fromLeft: Bool = false) {
+        guard let p = panel else { return }
+        if resizeStart == nil { resizeStart = (model.settings.deskScale, p.frame.maxY, p.frame.minX, p.frame.maxX) }
+        guard let st = resizeStart else { return }
+        let sc = min(2, max(0.6, st.scale * Double(factor)))
+        let base = model.settings.deskSize.size
+        let w = base.width * sc, h = base.height * sc
+        state.liveScale = sc
+        p.setFrame(NSRect(x: fromLeft ? st.right - w : st.left, y: st.top - h, width: w, height: h), display: true)
+        if done {
+            resizeStart = nil
+            state.liveScale = nil
+            model.settings.deskScale = (sc * 100).rounded() / 100
+            UserDefaults.standard.set(NSStringFromPoint(p.frame.origin), forKey: "deskOrigin")
+        }
+    }
+    private func step(_ d: Double) {
+        model.settings.deskScale = min(2, max(0.6, ((model.settings.deskScale + d) * 10).rounded() / 10))
+    }
+    @objc private func bigger() { step(0.1) }
+    @objc private func smaller() { step(-0.1) }
+    @objc private func resetScale() { model.settings.deskScale = 1 }
+    @objc private func toggle24() { model.settings.use24h.toggle() }
 
     @objc private func setSize(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String, let s = DeskSize(rawValue: raw) else { return }
@@ -380,6 +442,7 @@ extension DeskWidgetController: NSMenuDelegate {
         for it in menu.items {
             if let raw = it.representedObject as? String { it.state = raw == model.settings.deskSize.rawValue ? .on : .off }
             if it.action == #selector(toggleTop) { it.state = model.settings.deskOnTop ? .on : .off }
+            if it.action == #selector(toggle24) { it.title = model.settings.use24h ? "الساعة: ٢٤ (اكبس لـ١٢)" : "الساعة: ١٢ (اكبس لـ٢٤)" }
         }
     }
 }
@@ -387,16 +450,32 @@ extension DeskWidgetController: NSMenuDelegate {
 /// Click = open the app, drag = move the widget.
 final class DeskHostingView<V: View>: NSHostingView<V> {
     var onClick: (() -> Void)?
+    /// factor, finished, anchor on the right edge (left edge dragged)
+    var onResize: ((CGFloat, Bool, Bool) -> Void)?
     private var start: NSPoint?
     private var origin: NSPoint?
+    private var startSize = CGSize(width: 1, height: 1)
     private var dragged = false
+    private var edge: Edge = .none
+
+    override func resetCursorRects() { EdgeZones.addCursorRects(to: self) }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseDown(with e: NSEvent) {
         start = NSEvent.mouseLocation
         origin = window?.frame.origin
+        startSize = window?.frame.size ?? CGSize(width: 1, height: 1)
         dragged = false
+        // edges and bottom corners resize; the handle icon corner too
+        let p = e.locationInWindow
+        edge = EdgeZones.edge(at: p, size: startSize)
+        if edge == .none && p.x > startSize.width - 34 && p.y < 34 { edge = .bottomRight }
+    }
+    private func factor(_ now: NSPoint) -> CGFloat {
+        guard let s = start else { return 1 }
+        let g = EdgeZones.grow(edge, dx: now.x - s.x, dy: now.y - s.y, aspect: startSize.width / startSize.height)
+        return max(0.2, (startSize.width + g) / startSize.width)
     }
     override func mouseDragged(with e: NSEvent) {
         guard let s = start, let o = origin, let w = window else { return }
@@ -404,10 +483,16 @@ final class DeskHostingView<V: View>: NSHostingView<V> {
         let dx = now.x - s.x, dy = now.y - s.y
         if !dragged && hypot(dx, dy) < 4 { return }
         dragged = true
-        w.setFrameOrigin(NSPoint(x: o.x + dx, y: o.y + dy))
+        if edge != .none {
+            onResize?(factor(now), false, edge == .left || edge == .bottomLeft)
+        } else {
+            w.setFrameOrigin(NSPoint(x: o.x + dx, y: o.y + dy))
+        }
     }
     override func mouseUp(with e: NSEvent) {
-        if !dragged { onClick?() }
-        start = nil; origin = nil; dragged = false
+        if edge != .none && dragged {
+            onResize?(factor(NSEvent.mouseLocation), true, edge == .left || edge == .bottomLeft)
+        } else if !dragged { onClick?() }
+        start = nil; origin = nil; dragged = false; edge = .none
     }
 }

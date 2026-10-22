@@ -69,6 +69,8 @@ struct Settings: Codable, Equatable {
     var deskOn = true
     var deskSize: DeskSize = .medium
     var deskOnTop = false
+    var deskScale = 1.0         // free size of the desktop widget (0.6 ... 2)
+    var panelScale = 1.0        // size of the window that opens from the menu bar (0.8 ... 1.5)
 
     var speakOn = true          // spoken announcement instead of the adhan (silent mode / meeting)
     var speakRepeats = 2
@@ -96,7 +98,7 @@ struct Settings: Codable, Equatable {
              hijriOffset, latinDigits, use24h, modes, voice, fajrVoice, volume, preReminder, smartPause, meetingSilent,
              khatmaOn, khatmaDays, khatmaStart, khatmaRead, khatmaCount, khatmaAfterPrayer,
              adhkarMorning, adhkarEvening, adhkarAfterPrayer, jumuah, khutbahBefore, suhoorBefore, launchAtLogin,
-             deskOn, deskSize, deskOnTop, speakOn, speakRepeats, speakInMeeting, speakVolume, speakTakbir
+             deskOn, deskSize, deskOnTop, deskScale, panelScale, speakOn, speakRepeats, speakInMeeting, speakVolume, speakTakbir
     }
 
     init(from decoder: Decoder) throws {
@@ -142,6 +144,8 @@ struct Settings: Codable, Equatable {
         deskOn = v(.deskOn, d.deskOn)
         deskSize = v(.deskSize, d.deskSize)
         deskOnTop = v(.deskOnTop, d.deskOnTop)
+        deskScale = min(2, max(0.6, v(.deskScale, d.deskScale)))
+        panelScale = min(1.5, max(0.8, v(.panelScale, d.panelScale)))
         speakOn = v(.speakOn, d.speakOn)
         speakRepeats = v(.speakRepeats, d.speakRepeats)
         speakInMeeting = v(.speakInMeeting, d.speakInMeeting)

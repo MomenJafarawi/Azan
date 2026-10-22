@@ -112,8 +112,15 @@ struct GoldTabs<T: Hashable>: View {
 
 // MARK: - main panel
 
+/// size while an edge of the main window is being dragged (saved on release)
+final class PanelUI: ObservableObject {
+    static let shared = PanelUI()
+    @Published var liveScale: Double? = nil
+}
+
 struct MainView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var ui = PanelUI.shared
     var visible: Bool = true
     var maxHeight: CGFloat = 900
     /// nil = natural height (used to measure); otherwise scroll inside this height
@@ -122,19 +129,34 @@ struct MainView: View {
     var openAdhkar: (AdhkarKind) -> Void
     var quit: () -> Void
     var close: () -> Void = {}
+    /// natural (unscaled) height; when set, the content is drawn at settings.panelScale
+    var naturalHeight: CGFloat? = nil
+    var relayout: () -> Void = {}
 
     static let width: CGFloat = 400
 
     var body: some View {
         let look = model.sky
+        let s = naturalHeight == nil ? 1 : CGFloat(ui.liveScale ?? model.settings.panelScale)
+        let inner = content(look)
+            .frame(width: Self.width)
+            .environment(\.layoutDirection, .rightToLeft)
+            .environment(\.locale, Fmt.locale(latin: model.latin))
+        let scaled = Group {
+            if let nh = naturalHeight {
+                inner.scaleEffect(s, anchor: .topLeading)
+                    .frame(width: Self.width * s, height: nh * s, alignment: .topLeading)
+            } else { inner }
+        }
         Group {
             if let h = scrollHeight {
-                ScrollView(showsIndicators: false) { content(look) }.frame(height: h)
+                ScrollView(showsIndicators: false) { scaled }.frame(height: h)
             } else {
-                content(look)
+                scaled
             }
         }
-        .frame(width: Self.width)
+        .environment(\.layoutDirection, .leftToRight)
+        .frame(width: Self.width * s)
         .background {
             ZStack {
                 if let lat = model.settings.latitude, let lon = model.settings.longitude {
@@ -148,8 +170,6 @@ struct MainView: View {
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(look.gold.opacity(0.55), lineWidth: 1))
         .foregroundStyle(look.text)
-        .environment(\.layoutDirection, .rightToLeft)
-        .environment(\.locale, Fmt.locale(latin: model.latin))
         .focusEffectDisabled()
     }
 
@@ -383,16 +403,38 @@ struct MainView: View {
     private func footer(_ look: SkyLook) -> some View {
         HStack {
             Button(action: openSettings) {
-                Label("الإعدادات", systemImage: "gearshape").font(.system(size: 13, weight: .medium))
+                Image(systemName: "gearshape").font(.system(size: 15))
             }
-            Spacer()
-            Text(Fmt.gregorian(model.now, latin: model.latin)).font(.system(size: 13))
-            Spacer()
-            Button(action: quit) { Image(systemName: "power").font(.system(size: 14)) }.help("إنهاء")
+            .help("الإعدادات")
+            Spacer(minLength: 6)
+            Text(Fmt.gregorian(model.now, latin: model.latin)).font(.system(size: 13)).lineLimit(1).minimumScaleFactor(0.7)
+            Spacer(minLength: 6)
+            HStack(spacing: 6) {
+                footButton(model.settings.use24h ? "٢٤س" : "١٢س", help: "الساعة: ٢٤ أو ١٢") { model.settings.use24h.toggle() }
+                footButton("A−", help: "تصغير النافذة") { setScale(-0.1) }
+                footButton("A+", help: "تكبير النافذة") { setScale(0.1) }
+                Button(action: quit) { Image(systemName: "power").font(.system(size: 14)) }.help("إنهاء").padding(.leading, 4)
+            }
         }
         .buttonStyle(.plain)
         .foregroundStyle(look.secondary)
         .padding(.horizontal, 4).padding(.top, 2)
+    }
+
+    private func footButton(_ t: String, help: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(t).font(.system(size: 12, weight: .bold, design: .rounded))
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Capsule().fill(model.sky.text.opacity(0.10)))
+                .overlay(Capsule().strokeBorder(model.sky.gold.opacity(0.35), lineWidth: 0.8))
+                .fixedSize()
+        }
+        .help(help)
+    }
+
+    private func setScale(_ d: Double) {
+        model.settings.panelScale = min(1.5, max(0.8, ((model.settings.panelScale + d) * 10).rounded() / 10))
+        DispatchQueue.main.async { relayout() }
     }
 
     private func noLocation(_ look: SkyLook) -> some View {

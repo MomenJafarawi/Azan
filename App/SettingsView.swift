@@ -289,8 +289,18 @@ private struct GeneralTab: View {
             Picker("الحجم", selection: $model.settings.deskSize) {
                 ForEach(DeskSize.allCases, id: \.self) { Text($0.arabic).tag($0) }
             }
+            HStack {
+                Text("حجم الويدجت")
+                Slider(value: $model.settings.deskScale, in: 0.6...2, step: 0.05)
+                Text("\(Fmt.num(Int((model.settings.deskScale * 100).rounded()), latin: model.latin))٪").monospacedDigit().frame(width: 48)
+            }
+            HStack {
+                Text("حجم نافذة البرنامج")
+                Slider(value: $model.settings.panelScale, in: 0.8...1.5, step: 0.05)
+                Text("\(Fmt.num(Int((model.settings.panelScale * 100).rounded()), latin: model.latin))٪").monospacedDigit().frame(width: 48)
+            }
             Toggle("فوق كل النوافذ (بدل ما يكون على سطح المكتب)", isOn: $model.settings.deskOnTop)
-            Text("اسحبه بالماوس لأي مكان، وكبسة يمين عليه بتغيّر الحجم.").font(.caption).foregroundStyle(.secondary)
+            Text("اسحبه بالماوس لأي مكان، واسحب الزاوية التحتانية اليمين لتكبّره أو تصغّره. وكبسة يمين عليه فيها خيارات الحجم والساعة.").font(.caption).foregroundStyle(.secondary)
         }
         Section("فحص الملفات") {
             let c = model.check

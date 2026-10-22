@@ -1,7 +1,7 @@
 # أذان للماك
 
 ## ⬇️ التنزيل
-- **[Azan-1.1-mac.dmg](https://github.com/MomenJafarawi/Azan/releases/download/v1.1/Azan-1.1-mac.dmg)**: البرنامج مع ملف التثبيت والتعليمات (macOS 14 أو أحدث، Apple Silicon وIntel)
+- **[Azan-1.2-mac.dmg](https://github.com/MomenJafarawi/Azan/releases/download/v1.2/Azan-1.2-mac.dmg)**: البرنامج مع ملف التثبيت والتعليمات (macOS 14 أو أحدث، Apple Silicon وIntel)
 
 ملف التثبيت موجود بقسم **Releases** (على يمين صفحة المستودع)، مش مع ملفات الكود.
 

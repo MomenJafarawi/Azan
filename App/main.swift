@@ -43,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         model.onTestAdhan = { [weak self] in self?.testAdhan() }
         desk.apply()
-        deskSub = model.$settings.removeDuplicates { $0.deskOn == $1.deskOn && $0.deskSize == $1.deskSize && $0.deskOnTop == $1.deskOnTop }
+        deskSub = model.$settings.removeDuplicates { $0.deskOn == $1.deskOn && $0.deskSize == $1.deskSize && $0.deskOnTop == $1.deskOnTop && $0.deskScale == $1.deskScale }
             .dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.desk.apply() }
         updateTitle()
         Log.write("started")

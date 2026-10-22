@@ -32,7 +32,7 @@ final class AppModel: ObservableObject {
     let player = AdhanPlayer()
     let announcer = Announcer()
     private var fired = Set<String>()
-    private var weMutedMedia = false
+    private var pausedMedia = PausedMedia()
     private var timer: Timer?
     private var lastWidgetDay = ""
     var onEvent: ((AppEvent, Bool) -> Void)?
@@ -205,21 +205,29 @@ final class AppModel: ObservableObject {
     }
 
     func startAdhan(_ p: Prayer) {
-        if settings.smartPause && MediaKeys.trusted && AudioState.othersPlaying() {
-            MediaKeys.playPause()
-            weMutedMedia = true
-        }
         playing = p
-        player.play(p == .fajr ? settings.fajrVoice : settings.voice, volume: settings.volume)
+        let voice = p == .fajr ? settings.fajrVoice : settings.voice
+        guard settings.smartPause else { player.play(voice, volume: settings.volume); return }
+        // find out what is really playing (takes about half a second), pause only that, then start the adhan
+        let allowKey = MediaKeys.trusted
+        DispatchQueue.global(qos: .userInitiated).async {
+            let m = MediaControl.pauseAll(allowKey: allowKey)
+            DispatchQueue.main.async {
+                self.pausedMedia = m
+                if self.playing == p { self.player.play(voice, volume: self.settings.volume) }
+                else if !m.isEmpty { self.pausedMedia = PausedMedia(); MediaControl.resume(m) }
+            }
+        }
     }
 
     func stopAdhan() { player.stop(); announcer.stop() }
 
     private func adhanEnded() {
         playing = nil
-        if weMutedMedia {
-            weMutedMedia = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { MediaKeys.playPause() }
+        if !pausedMedia.isEmpty {
+            let m = pausedMedia
+            pausedMedia = PausedMedia()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { MediaControl.resume(m) }
         }
         onAdhanEnded?()
     }

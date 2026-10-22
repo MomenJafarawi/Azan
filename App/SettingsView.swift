@@ -160,6 +160,10 @@ private struct AdhanTab: View {
         }
         Section("الأذان الذكي") {
             Toggle("إيقاف الموسيقى والفيديو وقت الأذان ثم إرجاعها", isOn: $model.settings.smartPause)
+            if model.settings.smartPause {
+                Text("بيوقّف بس اللي عم يطلع منه صوت فعلاً. Music وSpotify بيسألهم مباشرة، والمتصفح (يوتيوب) بيسمع صوته نص ثانية قبل ما يوقّفه، فالفيديو الموقّف ما بيشتغل أبداً. أول مرة بيطلب إذن \"تسجيل صوت النظام\" وإذن التحكم بـMusic/Spotify، وما بيسجّل ولا بيحفظ أي صوت.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if model.settings.smartPause && !MediaKeys.trusted {
                 HStack {
                     Text("بحتاج إذن \"تسهيلات الاستخدام\" مرة وحدة عشان أقدر أوقف الموسيقى.").font(.caption)

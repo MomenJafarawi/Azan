@@ -129,6 +129,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "desk": desk.apply()
         case "testadhan": testAdhan()
         case "announce": model.announce(.fajr)
+        case "mediatest":
+            DispatchQueue.global().async {
+                let procs = AudioSignal.outputPIDs(excludingBundles: [])
+                for (obj, pid) in procs {
+                    let name = NSRunningApplication(processIdentifier: pid)?.localizedName ?? "pid \(pid)"
+                    if #available(macOS 14.2, *) { Log.write("mediatest: \(name) output open, peak \(AudioSignal.peak(of: obj, seconds: 0.6))") }
+                }
+                if procs.isEmpty { Log.write("mediatest: no app has audio output open") }
+            }
         case "playing": testAdhan(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.togglePopover() }
         default:
             if what.hasPrefix("event:"), let k = EventKind(rawValue: String(what.dropFirst(6))) {

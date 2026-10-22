@@ -1,0 +1,8 @@
+# macOS / ExFAT metadata
+._*
+.DS_Store
+# personal data: settings backups (location, khatma progress)
+Backups/
+# build output (installers go to GitHub Releases)
+build/
+dist/

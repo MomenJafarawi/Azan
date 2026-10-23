@@ -34,6 +34,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         SelfCheck.offerMoveToApplications()
+        Updater.shared.onAvailable = { [weak self] _ in self?.showUpdateCard() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            if self?.model.settings.autoUpdateCheck == true { Updater.shared.check() }
+        }
+        Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
+            if self?.model.settings.autoUpdateCheck == true { Updater.shared.check() }
+        }
         model.check = SelfCheck.run(model: model)
         model.start()
         desk.onOpenSettings = { [weak self] in self?.showSettings() }
@@ -85,6 +92,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         adhanCardOpen = e.kind == .adhan && model.playing != nil
     }
 
+    func showUpdateCard() {
+        floating.show(UpdateCard(model: model, close: { [weak self] in self?.floating.close() }), autoClose: nil)
+    }
+
     func showAdhkar(_ k: AdhkarKind) {
         menuPanel.close()
         let w = adhkarWindow ?? makeWindow(title: "الأذكار", size: NSSize(width: 520, height: 680))
@@ -129,6 +140,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "desk": desk.apply()
         case "testadhan": testAdhan()
         case "announce": model.announce(.fajr)
+        case "update": Updater.shared.check(force: true)
+        case "updateinstall":
+            Updater.shared.onAvailable = { [weak self] _ in self?.showUpdateCard(); Updater.shared.install() }
+            Updater.shared.check(force: true)
         case "mediatest":
             DispatchQueue.global().async {
                 let procs = AudioSignal.outputPIDs(excludingBundles: [])
@@ -220,6 +235,7 @@ func selfTest(resources: String, bundle: String?) -> Int32 {
         let (n, bad) = SelfCheck.verify(base: URL(fileURLWithPath: b))
         check(n >= 18 && bad.isEmpty, "manifest: \(n) files verified, broken=\(bad)")
     }
+    check(Updater.isNewer("1.2.10", than: "1.2.9") && Updater.isNewer("1.3", than: "1.2.9") && !Updater.isNewer("1.2.1", than: "1.2.1") && !Updater.isNewer("1.2", than: "1.2.0"), "version compare")
     // 8. hijri + sky
     check(Fmt.hijri(Date(), offset: 0, latin: false).hasSuffix("هـ"), "hijri text")
     check(SkyLook.at(altitude: -30, rising: false).isDark && !SkyLook.at(altitude: 50, rising: true).isDark, "sky text contrast")

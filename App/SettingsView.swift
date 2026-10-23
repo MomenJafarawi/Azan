@@ -320,6 +320,7 @@ private struct GeneralTab: View {
                 Button { model.check = SelfCheck.run(model: model) } label: { Label("افحص وصلّح الآن", systemImage: "stethoscope") }
             }
         }
+        UpdatesSection(model: model)
         Section("التشغيل") {
             Toggle("يشتغل لحاله لما يفتح الماك", isOn: $model.settings.launchAtLogin)
         }
@@ -333,4 +334,31 @@ private struct GeneralTab: View {
 
 extension Array {
     subscript(safe i: Int) -> Element? { indices.contains(i) ? self[i] : nil }
+}
+
+private struct UpdatesSection: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var up = Updater.shared
+    var body: some View {
+        Section("التحديثات") {
+            Toggle("افحص مرة باليوم إذا في نسخة جديدة", isOn: $model.settings.autoUpdateCheck)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("نسختك: \(Updater.current)")
+                    if let a = up.available { Text("في نسخة جديدة: \(a.version)").foregroundStyle(model.sky.gold) }
+                    else if let l = up.lastCheck { Text("آخر فحص: \(Fmt.gregorian(l, latin: model.latin)) \(Fmt.time(l, latin: model.latin, use24h: model.settings.use24h))").font(.caption).foregroundStyle(.secondary) }
+                    if let e = up.error { Text(e).font(.caption).foregroundStyle(.orange) }
+                }
+                Spacer()
+                if up.available != nil {
+                    Button { up.install() } label: { Label(up.progress == nil ? "حدّث هلأ" : "عم ينزّل…", systemImage: "arrow.down.circle") }
+                        .buttonStyle(.borderedProminent).disabled(up.progress != nil)
+                } else {
+                    Button { up.check(force: true) } label: { Label(up.checking ? "عم يفحص…" : "افحص الآن", systemImage: "arrow.clockwise") }
+                        .disabled(up.checking)
+                }
+            }
+            Text("الفحص بيسأل GitHub عن آخر نسخة بس، وما بيبعت أي معلومات عنك.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
 }

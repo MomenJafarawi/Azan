@@ -1,9 +1,10 @@
 import AppKit
 import SwiftUI
 import WidgetKit
+import IOKit.pwr_mgt
 
 enum EventKind: String {
-    case adhan, pre, after, morningAdhkar, eveningAdhkar, kahf, khutbah, suhoor
+    case adhan, pre, after, morningAdhkar, eveningAdhkar, kahf, khutbah, suhoor, missed
 }
 
 struct AppEvent {
@@ -12,6 +13,8 @@ struct AppEvent {
     let time: Date
     /// how long after `time` it may still fire (sleep, late start)
     let window: TimeInterval
+    /// for a missed adhan: when the prayer time ends
+    var until: Date? = nil
     var key: String {
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
         return "\(f.string(from: time))|\(kind.rawValue)|\(prayer?.rawValue ?? -1)"
@@ -34,6 +37,8 @@ final class AppModel: ObservableObject {
     private var fired = Set<String>()
     private var pausedMedia = PausedMedia()
     private var timer: Timer?
+    private var awakeID: IOPMAssertionID = 0
+    private var lastTick: Date? = nil
     private var lastWidgetDay = ""
     var onEvent: ((AppEvent, Bool) -> Void)?
     var onTick: (() -> Void)?
@@ -169,16 +174,47 @@ final class AppModel: ObservableObject {
     func tick() {
         now = Date()
         let n = now
-        for e in events(around: n) where e.time <= n && !fired.contains(e.key) {
+        let list = events(around: n)
+        let prev = lastTick; lastTick = n
+        var missed: AppEvent? = nil
+        for e in list where e.time <= n && !fired.contains(e.key) {
             fired.insert(e.key)
-            if n.timeIntervalSince(e.time) > e.window { continue }
+            if n.timeIntervalSince(e.time) > e.window {
+                // the Mac slept through the adhan (no tick at adhan time): say so quietly if the prayer time is still running
+                if e.kind == .adhan, let pt = prev, pt < e.time, let s = schedule, let m = AppModel.missedEvent(e, now: n, schedule: s) { missed = m }
+                continue
+            }
             fire(e)
         }
+        if let m = missed { fire(m) }
+        holdAwake(list, n)
         if fired.count > 400 { fired = Set(fired.suffix(200)) }
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
         let day = f.string(from: n)
         if day != lastWidgetDay { lastWidgetDay = day; writeWidget(); store.dailyBackup() }
         onTick?()
+    }
+
+    /// card for an adhan that passed while the Mac was asleep, only while its prayer time is still running
+    static func missedEvent(_ e: AppEvent, now: Date, schedule: PrayerSchedule) -> AppEvent? {
+        guard e.kind == .adhan, let p = e.prayer, p.isPrayer else { return nil }
+        let end = schedule.next(after: e.time.addingTimeInterval(1)).1
+        guard now < end.addingTimeInterval(-60) else { return nil }
+        return AppEvent(kind: .missed, prayer: p, time: e.time, window: 0, until: end)
+    }
+
+    /// keep the Mac from falling asleep on its own from 10 minutes before an adhan until it is over
+    private func holdAwake(_ list: [AppEvent], _ n: Date) {
+        let need = playing != nil || list.contains { $0.kind == .adhan && n >= $0.time.addingTimeInterval(-600) && n <= $0.time.addingTimeInterval(180) }
+        if need && awakeID == 0 {
+            var id: IOPMAssertionID = 0
+            if IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleSystemSleep as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                                           "Azan: prayer time is near" as CFString, &id) == kIOReturnSuccess {
+                awakeID = id; Log.write("sleep held for adhan")
+            }
+        } else if !need && awakeID != 0 {
+            IOPMAssertionRelease(awakeID); awakeID = 0; Log.write("sleep allowed again")
+        }
     }
 
     private func fire(_ e: AppEvent) {

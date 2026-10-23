@@ -10,7 +10,7 @@
 
 ## ⬇️ التنزيل
 
-- **[Azan-1.3.0-mac.dmg](https://github.com/MominAlJafarawi/Azan/releases/download/v1.3.0/Azan-1.3.0-mac.dmg)** (حوالي 9 ميجا)
+- **[Azan-1.3.1-mac.dmg](https://github.com/MominAlJafarawi/Azan/releases/download/v1.3.1/Azan-1.3.1-mac.dmg)** (حوالي 9 ميجا)
 - يعمل على **macOS 14 (Sonoma) أو أحدث**، على أجهزة **Apple Silicon وIntel**.
 - كل ما يحتاجه البرنامج موجود داخله، ولا يحتاج أي تنزيل إضافي. طريقة التثبيت مكتوبة بالعربي داخل الملف.
 

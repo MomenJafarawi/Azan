@@ -157,7 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         default:
             if what.hasPrefix("event:"), let k = EventKind(rawValue: String(what.dropFirst(6))) {
                 let p = Prayer(rawValue: Int(ProcessInfo.processInfo.environment["AZAN_PRAYER"] ?? "3") ?? 3)
-                showEvent(AppEvent(kind: k, prayer: p, time: Date(), window: 60), meeting: ProcessInfo.processInfo.environment["AZAN_MEETING"] != nil)
+                showEvent(AppEvent(kind: k, prayer: p, time: k == .missed ? Date().addingTimeInterval(-1500) : Date(), window: 60, until: k == .missed ? Date().addingTimeInterval(3600) : nil), meeting: ProcessInfo.processInfo.environment["AZAN_MEETING"] != nil)
             }
         }
     }
@@ -236,7 +236,22 @@ func selfTest(resources: String, bundle: String?) -> Int32 {
         check(n >= 18 && bad.isEmpty, "manifest: \(n) files verified, broken=\(bad)")
     }
     check(Updater.isNewer("1.2.10", than: "1.2.9") && Updater.isNewer("1.3", than: "1.2.9") && !Updater.isNewer("1.2.1", than: "1.2.1") && !Updater.isNewer("1.2", than: "1.2.0"), "version compare")
-    // 8. hijri + sky
+    // 8. missed adhan card after sleep (Hannover, MWL)
+    do {
+        let tz = TimeZone.current
+        let sch = PrayerSchedule(input: CalcInput(latitude: 52.3759, longitude: 9.732, method: .mwl, school: .shafi, highLat: .seventhOfNight, offsets: [0, 0, 0, 0, 0, 0]), tz: tz)
+        let d = sch.day(Date())
+        if let asr = d.times[.asr], let mg = d.times[.maghrib], let fj = d.times[.fajr], let sr = d.times[.sunrise] {
+            let e = AppEvent(kind: .adhan, prayer: .asr, time: asr, window: 120)
+            let m = AppModel.missedEvent(e, now: asr.addingTimeInterval(1800), schedule: sch)
+            check(m?.kind == .missed && m?.until == mg, "missed asr card shown while asr time runs")
+            check(AppModel.missedEvent(e, now: mg.addingTimeInterval(60), schedule: sch) == nil, "no missed card after asr time ended")
+            let f = AppEvent(kind: .adhan, prayer: .fajr, time: fj, window: 120)
+            check(AppModel.missedEvent(f, now: fj.addingTimeInterval(600), schedule: sch)?.until == sr, "missed fajr ends at sunrise")
+            check(AppModel.missedEvent(AppEvent(kind: .adhan, prayer: .sunrise, time: sr, window: 120), now: sr.addingTimeInterval(600), schedule: sch) == nil, "no missed card for sunrise")
+        } else { check(false, "missed card times") }
+    }
+    // 9. hijri + sky
     check(Fmt.hijri(Date(), offset: 0, latin: false).hasSuffix("هـ"), "hijri text")
     check(SkyLook.at(altitude: -30, rising: false).isDark && !SkyLook.at(altitude: 50, rising: true).isDark, "sky text contrast")
     print(fails == 0 ? "SELFTEST PASSED" : "SELFTEST FAILED (\(fails))")

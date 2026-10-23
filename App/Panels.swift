@@ -99,6 +99,7 @@ struct EventCard: View {
         case .kahf: return "book.closed.fill"
         case .khutbah: return "building.columns.fill"
         case .suhoor: return "moon.haze.fill"
+        case .missed: return "clock.badge.exclamationmark"
         }
     }
 
@@ -115,6 +116,7 @@ struct EventCard: View {
         case .kahf: return "يوم الجمعة: سورة الكهف"
         case .khutbah: return "خطبة الجمعة \(Fmt.countdownLong(Double(model.settings.khutbahBefore) * 60, latin: model.latin))"
         case .suhoor: return "وقت السحور"
+        case .missed: return "فاتك أذان \(p.arabic)"
         }
     }
 
@@ -128,6 +130,10 @@ struct EventCard: View {
             let fj = event.time.addingTimeInterval(Double(model.settings.suhoorBefore) * 60)
             return "الإمساك \(Fmt.time(fj.addingTimeInterval(-600), latin: model.latin, use24h: model.settings.use24h)) · الفجر \(Fmt.time(fj, latin: model.latin, use24h: model.settings.use24h))"
         case .kahf: return "وأكثر من الصلاة على النبي ﷺ"
+        case .missed:
+            let t = { (d: Date) in Fmt.time(d, latin: self.model.latin, use24h: self.model.settings.use24h) }
+            guard let u = event.until else { return "الجهاز كان نايم وقت الأذان" }
+            return "كان الأذان \(t(event.time)) · وقت الصلاة مستمر حتى \(t(u))"
         default: return nil
         }
     }
